@@ -1,0 +1,6 @@
+# Requisitos del proyecto 
+pytest 
+Pillow 
+fastapi
+uvicorn
+websockets 
