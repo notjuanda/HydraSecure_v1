@@ -2,20 +2,26 @@
 
 ## Descripción
 
-HydraSecure es un pipeline de cifrado modular y reversible, diseñado para aplicar múltiples capas de transformación a mensajes de texto (y fácilmente extensible a archivos). Cada mensaje pasa por limpieza, fragmentación, funciones de cifrado por bloque (rotación, inversión, XOR, permutación, mutación ADN), reensamblado seguro y verificación de integridad.
+HydraSecure es un pipeline de cifrado modular, reversible y extensible, diseñado para aplicar múltiples capas de transformación a mensajes de texto (y fácilmente adaptable a archivos). El sistema es robusto, seguro y probado, con soporte para uso como librería, demo de consola y chat web cifrado extremo a extremo.
 
-## Características
+---
+
+## Características principales
 - Limpieza y normalización de texto (ASCII seguro)
 - Clave dinámica: clave base + timestamp + UUID
 - Fragmentación en bloques
-- Funciones múltiples por bloque, seleccionadas de forma determinista
+- Funciones múltiples por bloque, seleccionadas de forma determinista (rotación, inversión, XOR, permutación, mutación ADN)
 - Reensamblado seguro (base64 por bloque, cabecera JSON oculta)
-- Preparado para empaquetado en imagen/audio/texto (extensible)
+- Opcional: empaquetado en imagen PNG
 - Verificación de integridad con SHA256
 - Totalmente reversible y testeado
+- Chat web cifrado extremo a extremo (frontend JS + backend FastAPI)
 
-## Uso básico
+---
 
+## Modos de uso
+
+### 1. Como librería Python
 ```python
 from hydra_secure.pipeline import cifrar_pipeline, descifrar_pipeline
 
@@ -27,27 +33,59 @@ id_usuario = "user123"
 cifrado, metadatos = cifrar_pipeline(mensaje, clave, id_usuario)
 
 # Descifrar
-descifrado = descifrar_pipeline(cifrado, clave, id_usuario, metadatos)
-
-assert descifrado == mensaje  # Si el mensaje original es ASCII
+resultado = descifrar_pipeline(cifrado, clave, id_usuario, metadatos)
+assert resultado == mensaje  # Si el mensaje original es ASCII
 ```
 
-## Flujo del pipeline
+### 2. Demo de consola
+Ejecuta:
+```bash
+python main.py
+```
+Sigue las instrucciones para cifrar y descifrar mensajes manualmente.
 
+### 3. Chat web cifrado extremo a extremo
+- Instala dependencias:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- Inicia el servidor:
+  ```bash
+  uvicorn server:app --host 0.0.0.0 --port 8000
+  ```
+- Abre tu navegador en `http://localhost:8000/`.
+- Ingresa tu nombre y clave secreta. Solo quienes tengan la clave correcta podrán leer los mensajes.
+
+#### Detalles del frontend web
+- El cifrado y descifrado ocurre **en el navegador** (JS, ver `static/pipeline.js`).
+- El pipeline JS implementa salt, XOR y hash SHA256 (sin fragmentación ni PNG, para máxima compatibilidad y velocidad).
+- El servidor solo retransmite mensajes cifrados, nunca ve el contenido en claro.
+- Si la clave es incorrecta, el mensaje no se puede descifrar.
+- Interfaz moderna, responsiva y fácil de usar.
+
+#### Diferencias pipeline Python vs JS
+- **Python:** pipeline completo, fragmentación, funciones por bloque, permutación, mutación ADN, PNG, etc.
+- **JS (frontend):** versión simplificada (salt + XOR + hash SHA256, sin fragmentación ni PNG) para chat rápido y seguro.
+
+---
+
+## Flujo del pipeline (Python)
 1. **Preparación:** Limpieza y normalización del mensaje
 2. **Generación de semilla:** Clave base + timestamp + UUID
 3. **Fragmentación:** División en bloques
 4. **Funciones por bloque:** Rotación, inversión, XOR, permutación, mutación ADN
 5. **Reensamblado:** Base64 por bloque + cabecera JSON
-6. **(Opcional) Contenedor externo:** Preparado para imagen/audio/texto
+6. **(Opcional) Contenedor externo:** Empaquetado en imagen PNG
 7. **Verificación de integridad:** SHA256 del mensaje preparado
 
-## Extensión
-- Para cifrar archivos binarios, convierte el archivo a texto base64 antes de usar el pipeline.
-- Para empaquetar en imagen/audio, implementa la función `empaquetar_resultado`.
+---
 
-## Requisitos
-Ver `requirements.txt`.
+## Extensión y personalización
+- Puedes agregar nuevas funciones de bloque en `hydra_secure/funciones_bloque.py`.
+- El empaquetado en PNG es opcional y desacoplado (`hydra_secure/contenedor_png.py`).
+- Para cifrar archivos binarios, conviértelos a texto base64 antes de usar el pipeline.
+
+---
 
 ## Tests
 
@@ -57,42 +95,30 @@ pytest -s
 ```
 para ver todos los casos y la reversibilidad del pipeline.
 
-# HydraSecure Chat Web (cifrado extremo a extremo)
-
-## Requisitos
-- Python 3.8+
-- Instalar dependencias:
-  ```bash
-  pip install -r requirements.txt
-  ```
-
-## Servidor WebSocket (FastAPI)
-
-Para iniciar el servidor en la IP local (por ejemplo, 0.0.0.0:8000):
-
-```bash
-uvicorn server:app --host 0.0.0.0 --port 8000
-```
-
-Esto levanta el WebSocket en `/ws` y sirve el frontend en `/`.
-
-## Frontend web
-
-Abre tu navegador y accede a `http://<IP_DEL_SERVIDOR>:8000/`.
-
-- Ingresa tu nombre y clave secreta.
-- Escribe mensajes: solo quienes tengan la clave correcta podrán leerlos.
-- El cifrado y descifrado ocurre **en el navegador** (extremo a extremo).
-
-## Seguridad
-- El servidor solo retransmite mensajes cifrados, nunca ve el contenido en claro.
-- El pipeline de cifrado está portado a JavaScript para máxima privacidad.
-
-## Archivos
-- `server.py`: Servidor FastAPI + WebSocket.
-- `static/index.html`: Frontend web de chat.
-- `static/pipeline.js`: Lógica de cifrado/descifrado en JS.
+Los tests cubren:
+- Mensajes vacíos, largos, con caracteres especiales, tildes, binarios
+- Claves y usuarios distintos
+- Manipulación de datos (robustez)
+- Reversibilidad y detección de manipulación
 
 ---
 
-¡Listo para un chat seguro y moderno! 
+## Archivos principales
+- `hydra_secure/`: Núcleo del pipeline (modular, cada archivo una etapa)
+- `main.py`: Demo de consola
+- `gui.py`: Interfaz gráfica local (Tkinter)
+- `server.py`: Servidor FastAPI + WebSocket
+- `static/`: Frontend web (HTML, JS, CSS)
+- `requirements.txt`: Dependencias
+- `README.md`: Este archivo
+
+---
+
+## Seguridad
+- El servidor web solo retransmite mensajes cifrados, nunca ve el contenido en claro.
+- El pipeline de cifrado está portado a JavaScript para máxima privacidad en el chat web.
+- Si la clave es incorrecta, el mensaje no se puede descifrar ni manipular sin ser detectado.
+
+---
+
+¡Listo para un cifrado robusto, reversible y multiplataforma! 

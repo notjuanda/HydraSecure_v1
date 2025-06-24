@@ -15,15 +15,28 @@ def index():
 # Gestión simple de conexiones WebSocket
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        # {claveHash: [WebSocket, ...]}
+        self.salas = {}
+        self.ws_to_sala = {}  # WebSocket -> claveHash
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections.append(websocket)
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            await connection.send_text(message)
+        claveHash = self.ws_to_sala.get(websocket)
+        if claveHash and websocket in self.salas.get(claveHash, []):
+            self.salas[claveHash].remove(websocket)
+            if not self.salas[claveHash]:
+                del self.salas[claveHash]
+        if websocket in self.ws_to_sala:
+            del self.ws_to_sala[websocket]
+    def join_sala(self, websocket: WebSocket, claveHash: str):
+        if claveHash not in self.salas:
+            self.salas[claveHash] = []
+        if websocket not in self.salas[claveHash]:
+            self.salas[claveHash].append(websocket)
+        self.ws_to_sala[websocket] = claveHash
+    async def send_to_sala(self, claveHash: str, message: str):
+        for ws in self.salas.get(claveHash, []):
+            await ws.send_text(message)
 
 manager = ConnectionManager()
 
@@ -33,8 +46,16 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            # retransmite a todos (incluido el emisor)
-            await manager.broadcast(data)
+            import json
+            try:
+                msg = json.loads(data)
+            except Exception:
+                continue
+            if msg.get('tipo') == 'join' and 'claveHash' in msg:
+                manager.join_sala(websocket, msg['claveHash'])
+            elif msg.get('tipo') == 'msg' and 'claveHash' in msg:
+                # Solo reenvía a la sala correspondiente
+                await manager.send_to_sala(msg['claveHash'], data)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 

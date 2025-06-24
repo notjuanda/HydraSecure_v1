@@ -1,6 +1,7 @@
 let ws = null;
 let nombre = '';
 let clave = '';
+let claveHash = '';
 
 function scrollChat() {
     const mensajes = document.getElementById('mensajes');
@@ -51,6 +52,9 @@ function conectarWS() {
         addBurbuja('Conectado al chat.', 'sistema');
         document.getElementById('msg').disabled = false;
         document.querySelector('#form-msg button').disabled = false;
+        // Enviar mensaje de unión con hash de clave
+        claveHash = sha256(clave);
+        ws.send(JSON.stringify({ tipo: 'join', claveHash }));
     };
     ws.onmessage = async (event) => {
         try {
@@ -86,6 +90,6 @@ document.getElementById('form-msg').onsubmit = async function(e) {
     }
     // Cifra el mensaje antes de enviarlo
     const { cifrado, metadatos } = await cifrar_pipeline_js(msg, clave, nombre);
-    ws.send(JSON.stringify({ nombre, cifrado, metadatos }));
+    ws.send(JSON.stringify({ tipo: 'msg', nombre, cifrado, metadatos, claveHash }));
     document.getElementById('msg').value = '';
 }; 
