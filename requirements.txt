@@ -1,6 +1,5 @@
 # Requisitos del proyecto 
 pytest 
 Pillow 
-fastapi
-uvicorn
-websockets 
+cryptography>=41.0.0 
+tkinter 
